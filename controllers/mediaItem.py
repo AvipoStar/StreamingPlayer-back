@@ -188,25 +188,30 @@ async def getMediaItems(user_id: int):
                     mi.duration,
                     mi.file_url,
                     a.preview_url,
-                    JSON_ARRAYAGG(
-                        JSON_OBJECT('id', au.user_id, 'nickname', u.nickname)
-                    ) AS authors,
+                    au.authors,
                     CASE
                         WHEN f.media_item_id IS NOT NULL THEN TRUE
                         ELSE FALSE
                     END AS in_favorite
                 FROM media_items mi
                 JOIN albums a ON a.id = mi.album_id
-                JOIN authors au ON au.album_id = a.id
-                JOIN users u ON u.id = au.user_id
+                LEFT JOIN (
+                    SELECT
+                        au.album_id,
+                        JSON_ARRAYAGG(
+                            JSON_OBJECT('id', au.user_id, 'nickname', u.nickname)
+                        ) AS authors
+                    FROM authors au
+                    JOIN users u ON u.id = au.user_id
+                    GROUP BY au.album_id
+                ) au ON au.album_id = a.id
                 LEFT JOIN favorites f ON mi.id = f.media_item_id AND f.user_id = %s
-                GROUP BY mi.id, mi.title, mi.duration, mi.file_url, a.preview_url;
+                GROUP BY mi.id, mi.title, mi.duration, mi.file_url, a.preview_url, au.authors;
             """, (user_id,))
             result = await cursor.fetchall()
 
             tracks = []
             for track in result:
-                print('\ntrack: ', track)
                 track_id, title, duration, file_url, preview_url, authors, in_favorite = track
                 tracks.append({
                     "id": track_id,

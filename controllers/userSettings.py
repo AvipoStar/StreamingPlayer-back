@@ -16,7 +16,14 @@ async def editUserProfile(user: EditUser, user_id: int):
         try:
             query = """
             UPDATE users
-            SET email = %s, password = %s, name = %s, surname = %s, patronymic = %s, bornDate = %s, photo_url = %s
+            SET
+                email = StreamingPlayer.encrypt_data(%s),
+                password = %s,
+                name = StreamingPlayer.encrypt_data(%s),
+                surname = StreamingPlayer.encrypt_data(%s),
+                patronymic = StreamingPlayer.encrypt_data(%s),
+                bornDate = %s,
+                photo_url = %s
             WHERE id = %s
             """
             values = (
@@ -43,7 +50,7 @@ async def resetPasswordRequest(user_mail: str, new_password: str):
     db = await get_connection()
     async with db.cursor() as cursor:
         try:
-            await cursor.execute("SELECT id FROM users WHERE email = %s", (user_mail,))
+            await cursor.execute("SELECT id FROM users WHERE email = StreamingPlayer.encrypt_data(%s)", (user_mail,))
             user_id = await cursor.fetchone()
             if not user_id:
                 raise HTTPException(
@@ -112,7 +119,8 @@ async def getResetPasswordRequests():
     db = await get_connection()
     async with db.cursor() as cursor:
         try:
-            await cursor.execute("""SELECT prr.id, u.email FROM password_reset_requests prr
+            await cursor.execute("""SELECT prr.id, StreamingPlayer.decrypt_data(u.email) AS email
+                                    FROM password_reset_requests prr
                                     JOIN users u ON u.id = prr.user_id;""")
             result = await cursor.fetchall()
 

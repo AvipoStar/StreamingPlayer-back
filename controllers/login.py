@@ -14,7 +14,8 @@ async def login(email: str, password: str):
     db = await get_connection()
     async with db.cursor() as cursor:
         try:
-            await cursor.execute("SELECT id, password, surname, name FROM users WHERE email = %s", (email,))
+            await cursor.execute("SELECT id, password, surname, name FROM users WHERE email = encrypt_data(%s)",
+                                 (email,))
             result = await cursor.fetchone()
 
             if not result:
@@ -23,7 +24,7 @@ async def login(email: str, password: str):
                     detail="Пользователь не найден"
                 )
 
-            user_id, db_password, surname, name = result
+            user_id, db_password, encrypted_surname, encrypted_name = result
 
             hashed_password = await hash_password(password)
 

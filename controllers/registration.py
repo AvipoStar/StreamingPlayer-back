@@ -16,14 +16,20 @@ async def register_user(user: Registration):
     db = await get_connection()
     async with db.cursor() as cursor:
         try:
-
             # Хэширование пароля
             hashed_password = await hash_password(user.password)
 
-            # Вставка нового пользователя в базу данных
+            # Вставка нового пользователя в базу данных с шифрованием данных
             query = """
             INSERT INTO users (email, password, surname, name, patronymic, bornDate)
-            VALUES (%s, %s, %s, %s, %s, %s)
+            VALUES (
+                encrypt_data(%s), 
+                %s, 
+                encrypt_data(%s), 
+                encrypt_data(%s), 
+                encrypt_data(%s), 
+                %s
+            )
             """
             values = (user.email, hashed_password, user.surname, user.name, user.patronymic, user.bornDate)
             await cursor.execute(query, values)

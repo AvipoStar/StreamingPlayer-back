@@ -52,15 +52,27 @@ async def getTracks(user_id: int):
 
     async with connection.cursor(aiomysql.DictCursor) as cursor:
         query = """
-            SELECT mi.id, mi.title, mi.duration, a.preview_url,
-                   JSON_ARRAYAGG(JSON_OBJECT('id', a1.user_id, 'nickname', u.nickname)) AS authors
+            SELECT
+                mi.id,
+                mi.title,
+                mi.duration,
+                a.preview_url,
+                au.authors
             FROM favorites f
             JOIN media_items mi ON mi.id = f.media_item_id
             JOIN albums a ON mi.album_id = a.id
-            JOIN authors a1 ON a.id = a1.album_id
-            JOIN users u ON a1.user_id = u.id
+            LEFT JOIN (
+                SELECT
+                    a1.album_id,
+                    JSON_ARRAYAGG(
+                        JSON_OBJECT('id', a1.user_id, 'nickname', u.nickname)
+                    ) AS authors
+                FROM authors a1
+                JOIN users u ON a1.user_id = u.id
+                GROUP BY a1.album_id
+            ) au ON a.id = au.album_id
             WHERE f.user_id = %s
-            GROUP BY mi.id, mi.title, mi.duration, a.preview_url;
+            GROUP BY mi.id, mi.title, mi.duration, a.preview_url, au.authors;
         """
         values = (user_id,)
 
