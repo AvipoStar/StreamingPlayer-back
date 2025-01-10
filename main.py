@@ -17,6 +17,7 @@ from routers.genre import router as genre_router
 from routers.file import router as file_router
 from routers.admin import router as admin_router
 from routers.search import router as search_router
+from routers.superAdmin import router as superAdmin_router
 
 app = FastAPI()
 
@@ -91,4 +92,8 @@ app.include_router(
 app.include_router(
     router=search_router,
     prefix='/search'
+)
+app.include_router(
+    router=superAdmin_router,
+    prefix='/superAdmin'
 )
