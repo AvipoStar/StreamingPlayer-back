@@ -2,7 +2,7 @@ from fastapi import APIRouter, UploadFile, Depends
 
 from config.get_user_from_token import get_user_id_from_token
 from controllers.mediaItem import addMediaItem, updateMediaItem, removeMediaItem, getMediaItems, miInPlaylists, \
-    getMediaItemDetails
+    getMediaItemDetails, get_latest_tracks, get_listening_history
 from models.mediaItem import CreateMediaItem, MediaItem
 
 router = APIRouter()
@@ -39,6 +39,18 @@ async def mi_in_playlists(track_id: int, user_id: int = Depends(get_user_id_from
 
 
 @router.get('/details/{track_id}', tags=["MediaItem"])
-async def mi_in_playlists(track_id: int):
+async def track_details(track_id: int):
     track = await getMediaItemDetails(track_id)
+    return track
+
+
+@router.get('/last_tracks', tags=["MediaItem"])
+async def last_tracks(user_id: int = Depends(get_user_id_from_token)):
+    track = await get_latest_tracks(user_id)
+    return track
+
+
+@router.get('/listening_history', tags=["MediaItem"])
+async def listening_history(user_id: int = Depends(get_user_id_from_token)):
+    track = await get_listening_history(user_id)
     return track

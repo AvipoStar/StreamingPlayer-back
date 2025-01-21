@@ -1,9 +1,15 @@
 from fastapi import APIRouter, Depends
 
 from config.get_user_from_token import get_user_id_from_token
-from controllers.author import getTracks, getAlbums, getAuthorInfo
+from controllers.author import getTracks, getAlbums, getAuthorInfo, getAuthors
 
 router = APIRouter()
+
+
+@router.get('/', tags=["Author"])
+async def get_authors():
+    authors = await getAuthors()
+    return authors
 
 
 @router.get('/{author_id}', tags=["Author"])

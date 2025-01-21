@@ -31,7 +31,7 @@ app.add_middleware(
 )
 
 # Обслуживание статических файлов
-app.mount("/uploads", StaticFiles(directory="/var/www/uploads"), name="uploads")
+# app.mount("/uploads", StaticFiles(directory="/var/www/uploads"), name="uploads")
 
 app.include_router(
     router=auth_router,

@@ -5,8 +5,6 @@ from fastapi import FastAPI, HTTPException, status
 from config.Database import get_connection
 from mysql.connector import Error
 
-app = FastAPI()
-
 
 async def getGenres():
     connection = await get_connection()
@@ -41,7 +39,7 @@ async def getGenreTracks(genre_id: int, user_id: int):
 
     cursor = await connection.cursor()
     try:
-        await  cursor.execute("""
+        await cursor.execute("""
         SELECT name, color FROM genres 
         WHERE id = %s""", (genre_id,))
         genre = await cursor.fetchone()

@@ -8,14 +8,13 @@ from config.Database import get_connection
 app = FastAPI()
 
 
-async def getAuthors(search: str):
+async def getAuthors():
     conn = await get_connection()
     try:
         async with conn.cursor() as cursor:
             try:
-                query = "SELECT id, nickname FROM users WHERE nickname LIKE %s"
-                search_param = f"%{search}%"
-                await cursor.execute(query, (search_param,))
+                query = "SELECT id, nickname FROM users WHERE is_author = 1"
+                await cursor.execute(query)
                 result = await cursor.fetchall()
 
                 if cursor.rowcount == 0:
@@ -102,22 +101,22 @@ async def getTracks(author_id: int, user_id: int):
 
 async def getAlbums(author_id: int):
     conn = await get_connection()
-    try:
-        async with conn.cursor() as cursor:
-            try:
-                query = """
+    async with conn.cursor() as cursor:
+        try:
+            query = """
                 SELECT a1.id, a1.title, a1.preview_url FROM users u
                 JOIN authors a ON u.id = a.user_id
                 JOIN albums a1 ON a.album_id = a1.id
                 WHERE u.id = %s;
                 """
-                await cursor.execute(query, (author_id,))
-                result = await cursor.fetchall()
+            await cursor.execute(query, (author_id,))
+            result = await cursor.fetchall()
 
-                if cursor.rowcount == 0:
-                    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Альбомы не найдены")
+            if cursor.rowcount == 0:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Альбомы не найдены")
 
-                albums = []
+            albums = []
+            if result:
                 for album in result:
                     album_id, album_title, preview_url = album
                     albums.append({
@@ -127,21 +126,20 @@ async def getAlbums(author_id: int):
                     })
                 return albums
 
-            except aiomysql.Error as e:
-                print(f"Error: {e}")
+            else:
                 raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="Ошибка получения альбомов"
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Альбомы не найдены"
                 )
-            finally:
-                await cursor.close()
-                conn.close()
-    except Exception as e:
-        print(f"Error: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Ошибка получения альбомов"
-        )
+        except aiomysql.Error as e:
+            print(f"Error: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Ошибка получения альбомов"
+            )
+        finally:
+            await cursor.close()
+            conn.close()
 
 
 async def getAuthorInfo(author_id: int):

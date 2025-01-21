@@ -2,26 +2,23 @@ import json
 
 from fastapi import FastAPI, HTTPException, status
 import aiomysql
-from config.Database import get_connection  # Assuming this function returns the connection parameters
-from models.mediaItem import MediaItem
-from models.playlist import createPlaylist, Playlist
+from config.Database import get_connection
 
 app = FastAPI()
 
 
-async def createPlaylist(playlist: createPlaylist):
+async def createPlaylist(playlist: str, user_id: int):
     connection = await get_connection()
     if connection is None:
         return None
 
     async with connection.cursor() as cursor:
-        query = "INSERT INTO playlists (name, description) VALUES (%s, %s)"
-        values = (playlist.name, playlist.description)
-
         try:
-            await cursor.execute(query, values)
+            await cursor.execute("INSERT INTO playlists (name, user_id) VALUES (%s, %s)", (playlist, user_id))
             await connection.commit()
             playlist_id = cursor.lastrowid
+
+
             return playlist_id
         except aiomysql.Error as e:
             print(f"Error: {e}")
