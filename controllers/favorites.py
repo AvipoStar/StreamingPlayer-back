@@ -5,6 +5,7 @@ import aiomysql
 from fastapi import FastAPI, HTTPException, status
 
 from config.Database import get_connection
+from config.convertImgPath import convertImgPath
 
 app = FastAPI()
 
@@ -144,7 +145,7 @@ async def getTracksHTML(user_id: int):
                     "id": track["id"],
                     "title": track["title"],
                     "duration": track["duration"],
-                    "preview_url": f'http://79.104.192.137/{track["preview_url"].split("/var/www/")[1]}',
+                    "preview_url": convertImgPath(track["preview_url"]),
                     "inFavorites": True,
                     "authors": json.loads(track["authors"]) if track["authors"] else [],
                 })

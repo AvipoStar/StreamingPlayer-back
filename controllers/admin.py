@@ -5,13 +5,14 @@ import os
 from datetime import date, timedelta
 
 import aiomysql
-import openpyxl as openpyxl
 import pandas as pd
 from starlette import status
 from starlette.exceptions import HTTPException
 from starlette.responses import FileResponse, StreamingResponse
 
 from config.Database import get_connection
+from config.convertDate import convertDate
+from config.convertImgPath import convertImgPath
 
 
 async def get_table_row_counts():
@@ -457,30 +458,36 @@ async def getReporAuthors():
         try:
             # Получение данных авторов
             await cursor.execute('''SELECT u.id, u.nickname FROM authors a
-                                    JOIN users u ON a.user_id = u.id
-                                    GROUP BY u.id;
-                                    ''')
+                                        JOIN users u ON a.user_id = u.id
+                                        GROUP BY u.id;
+                                        ''')
             authors = await cursor.fetchall()
 
             author_result = []
             for author in authors:
-                print('author: ', author)
                 # Получение альбомов для каждого автора
                 await cursor.execute('''
-                        SELECT a1.id, a1.title FROM albums a1
-                        JOIN authors a ON a.album_id = a1.id
-                        WHERE a.user_id = %s;''', (author['id'],))
+                            SELECT a1.id, a1.title, a1.release_date, a1.preview_url FROM albums a1
+                            JOIN authors a ON a.album_id = a1.id
+                            WHERE a.user_id = %s;''', (author['id'],))
                 albums = await cursor.fetchall()
 
                 album_result = []
                 for album in albums:
-                    print('album: ', album)
                     # Получение треков для каждого альбома
                     await cursor.execute('''
-                            SELECT mi.title FROM media_items mi
-                            WHERE mi.album_id = %s;''', (album['id'],))
+                                SELECT mi.title, mi.duration, GROUP_CONCAT(g.name ORDER BY g.name SEPARATOR ', ') AS genres
+                                FROM media_items mi
+                                JOIN mediaItem_genre ig ON mi.id = ig.id_mediaItem
+                                JOIN genres g ON ig.id_genre = g.id
+                                WHERE mi.album_id = %s
+                                GROUP BY mi.id;''', (album['id'],))
                     tracks = await cursor.fetchall()
-                    album_result.append({'album_title': album['title'], 'tracks': tracks})
+                    album_result.append(
+                        {'album_title': album['title'],
+                         'release_date': convertDate(album['release_date']),
+                         "preview_url": convertImgPath(album["preview_url"]),
+                         'tracks': tracks})
 
                 author_result.append({
                     'author_id': author['id'],
@@ -488,58 +495,117 @@ async def getReporAuthors():
                     'albums': album_result
                 })
 
-            print('\n\nauthor_result:\n', author_result)
-
             # Генерация HTML таблицы
             html_content = """
-                <html>
-                <head>
-                    <style>
-                        .table {
-                            border: 1px solid black;
-                            width: 100%;
-                            border-collapse: collapse;
-                            background-color: #fff
-                        }
-                        .author_row {
-                            display: flex;
-                            flex-direction: row;
-                            gap: 10px;
-                            border: 1px solid black;
-                            padding: 8px;
-                            text-align: left;
-                        }
-                        .album_row {
-                            display: flex;
-                            flex-direction: row;
-                            gap: 10px;
-                            margin-left: 20px;
-                            border: 1px solid black;
-                            padding: 8px;
-                            text-align: left;
-                        }
-                        .track_row {
-                            display: flex;
-                            flex-direction: row;
-                            gap: 10px;
-                            margin-left: 40px;
-                            border: 1px solid black;
-                            padding: 8px;
-                            text-align: left;
-                        }
-                    </style>
-                </head>
-                <body>
-                    <h1>Отчет по авторам</h1>
-                    <div>
+                    <html>
+                    <head>
+                        <style>
+                            body {
+                                font-family: Arial, sans-serif;
+                            }
+                            .table {
+                                border: 1px solid black;
+                                width: 100%;
+                                border-collapse: collapse;
+                                background-color: #fff;
+                            }
+                            .table-row {
+                                display: flex;
+                                flex-direction: row;
+                                align-items: flex-start;
+                                border-bottom: 1px solid black;
+                            }
+                            .index {
+                                font-weight: bold;
+                                margin: 10px;
+                                width: 50px;
+                                text-align: center;
+                            }
+                            .author-row {
+                                display: flex;
+                                flex-direction: column;
+                                border-left: 1px solid black;
+                                text-align: left;
+                                width: 100%;
+                            }
+                            .album-row {
+                                display: flex;
+                                flex-direction: row;
+                                text-align: left;
+                                width: 100%;
+                                align-items: flex-start;
+                                border-bottom: 1px solid #000;
+                            }
+                            .album-name {
+                                display: flex;
+                                flex-direction: column;
+                                align-items: center;
+                                gap: 5px;
+                                padding: 10px;
+                                border-right: 1px solid #000;
+                                width: 260px;
+                            }
+                            .album-cover {
+                                width: 70px;
+                            }
+                            table {
+                                text-align: left;
+                                border-collapse: collapse;
+                                width: 100%;
+                            }
+                            .author-name,
+                            .track-name {
+                                padding: 5px;
+                                border-bottom: 1px solid #000;
+                            }
+                            th,
+                            td {
+                                padding-right: 5px;
+                                border: 1px solid #000;
+                            }
+                            th:first-child, td:first-child{
+                                width: 350px;
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        <h1>Отчет по авторам</h1>
+                        <div class="table">
                 """
 
+            author_index = 1
             for author in author_result:
-                html_content += f"<div class = 'table'><div class = 'author_row'><strong>Автор: </strong><div>{author['author_id']}</div><div>{author['author_nickname']}</div></div>"
+                html_content += f"<div class='table-row'>" \
+                                f"<div class='index'>{author_index}.</div>" \
+                                f"<div class='author-row'>" \
+                                f"<div class='author-name'><strong>Автор: {author['author_nickname']}</strong></div>"
                 for album in author['albums']:
-                    html_content += f"<div class = 'album_row'><strong>Альбом: </strong><div>{album['album_title']}</div></div>"
+                    html_content += f"<div class='album-row'>" \
+                                    f"<div class='album-name'>" \
+                                    f"<img class='album-cover' src='{album['preview_url']}'/>" \
+                                    f"<strong>{album['album_title']}</strong>" \
+                                    f"<div><strong>Выпущен:</strong> {album['release_date']}</div>" \
+                                    f"</div>" \
+                                    f"<table>" \
+                                    f"<thead>" \
+                                    f"<tr>" \
+                                    f"<th>Название</th>" \
+                                    f"<th>Продолжительность</th>" \
+                                    f"<th>Жанры</th>" \
+                                    f"</tr>" \
+                                    f"</thead>" \
+                                    f"<tbody>"
                     for track in album['tracks']:
-                        html_content += f"<div class = 'track_row'><strong>Трек: </strong><div>{track['title']}</div></div>"
+                        html_content += f"<tr>" \
+                                        f"<td>{track['title']}</td>" \
+                                        f"<td>{track['duration']} сек.</td>" \
+                                        f"<td>{track['genres']} сек.</td>" \
+                                        f"</tr>"
+                    html_content += f"</tbody>" \
+                                    f"</table>" \
+                                    f"</div>"
+                html_content += f"</div></div>"
+                author_index += 1
             html_content += "</div></body></html>"
 
             return html_content
@@ -569,13 +635,13 @@ async def getReporGenres():
             for genre in genres:
                 # Получение треков для каждого жанра и их количества прослушиваний
                 await cursor.execute('''
-                            SELECT mi.title, COUNT(h.id) as listen_count
-                            FROM media_items mi
-                            JOIN mediaItem_genre mig ON mi.id = mig.id_mediaItem
-                            JOIN genres g ON mig.id_genre = g.id
-                            LEFT JOIN history h ON mi.id = h.media_item_id
-                            WHERE g.id = %s
-                            GROUP BY mi.title;''', (genre['id'],))
+                                SELECT mi.title, mi.duration, COUNT(h.id) as listen_count
+                                FROM media_items mi
+                                JOIN mediaItem_genre mig ON mi.id = mig.id_mediaItem
+                                JOIN genres g ON mig.id_genre = g.id
+                                LEFT JOIN history h ON mi.id = h.media_item_id
+                                WHERE g.id = %s
+                                GROUP BY mi.title, mi.duration;''', (genre['id'],))
                 tracks = await cursor.fetchall()
 
                 total_listens = sum(track['listen_count'] for track in tracks)
@@ -592,49 +658,57 @@ async def getReporGenres():
                     <html>
                     <head>
                         <style>
-                               .table {
-                                    border: 1px solid black;
-                                    width: 100%;
-                                    background-color: #fff;
-                                    display: flex;
-                                    flex-direction: column;
-                                  }
-                                  .table-row {
-                                    display: flex;
-                                    flex-direction: row;
-                                    align-items: flex-start;
-                                    border: 1px solid black;
-                                    border-collapse: collapse;
-                                  }
-                                  .index {
-                                    font-weight: bold;
-                                    margin: 10px;
-                                    width: 10px;
-                                  }
-                                  .genre-row {
-                                    display: flex;
-                                    flex-direction: column;
-                                    border: 1px solid black;
-                                    padding: 8px;
-                                    text-align: left;
-                                    align-items: stretch;
-                                    width: 100%;
-                                  }
-                                  .genre-name {
-                                    display: flex;
-                                    flex-direction: row;
-                                    gap: 10px;
-                                  }
-                                  .track-row {
-                                    display: flex;
-                                    flex-direction: row;
-                                    gap: 10px;
-                                    margin-left: 20px;
-                                    border: 1px solid black;
-                                    padding: 8px;
-                                    text-align: left;
-                                  }
-                            </style>
+                            .table {
+                                border: 1px solid black;
+                                width: 100%;
+                                background-color: #fff;
+                                display: flex;
+                                flex-direction: column;
+                              }
+                            .table-row {
+                                display: flex;
+                                flex-direction: row;
+                                align-items: flex-start;
+                                border: 1px solid black;
+                                border-collapse: collapse;
+                            }
+                            .index
+                            {
+                                width: 250px;
+                                padding: 5px;
+                            }
+                            .genre-row {
+                                display: flex;
+                                flex-direction: column;
+                                text-align: left;
+                                align-items: stretch;
+                                width: 100%;
+                            }
+                            .genre-name {
+                                display: flex;
+                                flex-direction: row;
+                                gap: 10px;
+                            }
+                            .track-row {
+                                display: flex;
+                                flex-direction: row;
+                                gap: 10px;
+                                margin-left: 20px;
+                                border: 1px solid black;
+                                padding: 8px;
+                                text-align: left;
+                            }
+                            table {
+                                border-collapse: collapse;
+                            }
+                            td,
+                            th {
+                                border: 1px solid #000;
+                            }
+                            th:first-child, td:first-child{
+                                width: 350px;
+                            }
+                        </style>
                     </head>
                     <body>
                         <h1>Отчет по жанрам</h1>
@@ -644,17 +718,33 @@ async def getReporGenres():
             genre_index = 1
             for genre in genre_result:
                 html_content += f"<div class='table-row'>" \
-                                    f"<div class='index'>{genre_index}.</div>" \
+                                    f"<div class='index'>" \
+                                        f"{genre_index}. " \
+                                        f"<strong>Жанр: {genre['genre_name']}</strong>" \
+                                        f"<div>Количество прослушиваний: {genre['total_listens']}</div>" \
+                                    f"</div>" \
                                     f"<div class='genre-row'>" \
-                                        f"<div class='genre-name'>" \
-                                            f"<strong>Жанр: {genre['genre_name']}</strong>" \
-                                            f"<div>Количество прослушиваний: {genre['total_listens']}</div>" \
-                                        f"</div>"
+                                        f"<table>" \
+                                            f"<thead>" \
+                                                f"<tr>" \
+                                                    f"<th>Название</th>" \
+                                                    f"<th>Количество прослушиваний</th>" \
+                                                    f"<th>Длительность</th>" \
+                                                f"</tr>" \
+                                            f"</thead>" \
+                                        f"<tbody>"
                 for track in genre['tracks']:
-                    html_content += f"<div class='track-row'>Трек: {track['title']} Прослушиваний: {track['listen_count']}</div>"
-                html_content += "</div></div>"
+                    html_content += f"<tr>" \
+                                        f"<td>{track['title']}</td>" \
+                                        f"<td>{track['listen_count']}</td>" \
+                                        f"<td>{track['duration']} сек.</td>" \
+                                    f"</tr>"
+                html_content += f"</tbody>" \
+                                f"</table>" \
+                                f"</div>" \
+                                f"</div>"
                 genre_index += 1
-            html_content += "</div></div></body></html>"
+            html_content += "</div></body></html>"
 
             return html_content
         except aiomysql.Error as e:
