@@ -446,3 +446,223 @@ async def getUserListenCount():
     finally:
         await cursor.close()
         conn.close()
+
+
+async def getReporAuthors():
+    connection = await get_connection()
+    if connection is None:
+        raise HTTPException(status_code=500, detail="Ошибка подключения к базе данных")
+
+    async with connection.cursor(aiomysql.DictCursor) as cursor:
+        try:
+            # Получение данных авторов
+            await cursor.execute('''SELECT u.id, u.nickname FROM authors a
+                                    JOIN users u ON a.user_id = u.id
+                                    GROUP BY u.id;
+                                    ''')
+            authors = await cursor.fetchall()
+
+            author_result = []
+            for author in authors:
+                print('author: ', author)
+                # Получение альбомов для каждого автора
+                await cursor.execute('''
+                        SELECT a1.id, a1.title FROM albums a1
+                        JOIN authors a ON a.album_id = a1.id
+                        WHERE a.user_id = %s;''', (author['id'],))
+                albums = await cursor.fetchall()
+
+                album_result = []
+                for album in albums:
+                    print('album: ', album)
+                    # Получение треков для каждого альбома
+                    await cursor.execute('''
+                            SELECT mi.title FROM media_items mi
+                            WHERE mi.album_id = %s;''', (album['id'],))
+                    tracks = await cursor.fetchall()
+                    album_result.append({'album_title': album['title'], 'tracks': tracks})
+
+                author_result.append({
+                    'author_id': author['id'],
+                    'author_nickname': author['nickname'],
+                    'albums': album_result
+                })
+
+            print('\n\nauthor_result:\n', author_result)
+
+            # Генерация HTML таблицы
+            html_content = """
+                <html>
+                <head>
+                    <style>
+                        .table {
+                            border: 1px solid black;
+                            width: 100%;
+                            border-collapse: collapse;
+                            background-color: #fff
+                        }
+                        .author_row {
+                            display: flex;
+                            flex-direction: row;
+                            gap: 10px;
+                            border: 1px solid black;
+                            padding: 8px;
+                            text-align: left;
+                        }
+                        .album_row {
+                            display: flex;
+                            flex-direction: row;
+                            gap: 10px;
+                            margin-left: 20px;
+                            border: 1px solid black;
+                            padding: 8px;
+                            text-align: left;
+                        }
+                        .track_row {
+                            display: flex;
+                            flex-direction: row;
+                            gap: 10px;
+                            margin-left: 40px;
+                            border: 1px solid black;
+                            padding: 8px;
+                            text-align: left;
+                        }
+                    </style>
+                </head>
+                <body>
+                    <h1>Отчет по авторам</h1>
+                    <div>
+                """
+
+            for author in author_result:
+                html_content += f"<div class = 'table'><div class = 'author_row'><strong>Автор: </strong><div>{author['author_id']}</div><div>{author['author_nickname']}</div></div>"
+                for album in author['albums']:
+                    html_content += f"<div class = 'album_row'><strong>Альбом: </strong><div>{album['album_title']}</div></div>"
+                    for track in album['tracks']:
+                        html_content += f"<div class = 'track_row'><strong>Трек: </strong><div>{track['title']}</div></div>"
+            html_content += "</div></body></html>"
+
+            return html_content
+        except aiomysql.Error as e:
+            print(f"Ошибка: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Ошибка получения треков"
+            )
+        finally:
+            await cursor.close()
+            connection.close()
+
+
+async def getReporGenres():
+    connection = await get_connection()
+    if connection is None:
+        raise HTTPException(status_code=500, detail="Ошибка подключения к базе данных")
+
+    async with connection.cursor(aiomysql.DictCursor) as cursor:
+        try:
+            # Получение данных жанров
+            await cursor.execute('''SELECT id, name FROM genres;''')
+            genres = await cursor.fetchall()
+
+            genre_result = []
+            for genre in genres:
+                # Получение треков для каждого жанра и их количества прослушиваний
+                await cursor.execute('''
+                            SELECT mi.title, COUNT(h.id) as listen_count
+                            FROM media_items mi
+                            JOIN mediaItem_genre mig ON mi.id = mig.id_mediaItem
+                            JOIN genres g ON mig.id_genre = g.id
+                            LEFT JOIN history h ON mi.id = h.media_item_id
+                            WHERE g.id = %s
+                            GROUP BY mi.title;''', (genre['id'],))
+                tracks = await cursor.fetchall()
+
+                total_listens = sum(track['listen_count'] for track in tracks)
+
+                genre_result.append({
+                    'genre_id': genre['id'],
+                    'genre_name': genre['name'],
+                    'total_listens': total_listens,
+                    'tracks': tracks
+                })
+
+            # Генерация HTML таблицы
+            html_content = """
+                    <html>
+                    <head>
+                        <style>
+                               .table {
+                                    border: 1px solid black;
+                                    width: 100%;
+                                    background-color: #fff;
+                                    display: flex;
+                                    flex-direction: column;
+                                  }
+                                  .table-row {
+                                    display: flex;
+                                    flex-direction: row;
+                                    align-items: flex-start;
+                                    border: 1px solid black;
+                                    border-collapse: collapse;
+                                  }
+                                  .index {
+                                    font-weight: bold;
+                                    margin: 10px;
+                                    width: 10px;
+                                  }
+                                  .genre-row {
+                                    display: flex;
+                                    flex-direction: column;
+                                    border: 1px solid black;
+                                    padding: 8px;
+                                    text-align: left;
+                                    align-items: stretch;
+                                    width: 100%;
+                                  }
+                                  .genre-name {
+                                    display: flex;
+                                    flex-direction: row;
+                                    gap: 10px;
+                                  }
+                                  .track-row {
+                                    display: flex;
+                                    flex-direction: row;
+                                    gap: 10px;
+                                    margin-left: 20px;
+                                    border: 1px solid black;
+                                    padding: 8px;
+                                    text-align: left;
+                                  }
+                            </style>
+                    </head>
+                    <body>
+                        <h1>Отчет по жанрам</h1>
+                        <div class="table">
+                """
+
+            genre_index = 1
+            for genre in genre_result:
+                html_content += f"<div class='table-row'>" \
+                                    f"<div class='index'>{genre_index}.</div>" \
+                                    f"<div class='genre-row'>" \
+                                        f"<div class='genre-name'>" \
+                                            f"<strong>Жанр: {genre['genre_name']}</strong>" \
+                                            f"<div>Количество прослушиваний: {genre['total_listens']}</div>" \
+                                        f"</div>"
+                for track in genre['tracks']:
+                    html_content += f"<div class='track-row'>Трек: {track['title']} Прослушиваний: {track['listen_count']}</div>"
+                html_content += "</div></div>"
+                genre_index += 1
+            html_content += "</div></div></body></html>"
+
+            return html_content
+        except aiomysql.Error as e:
+            print(f"Ошибка: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Ошибка получения треков"
+            )
+        finally:
+            await cursor.close()
+            connection.close()

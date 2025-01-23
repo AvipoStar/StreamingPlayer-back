@@ -27,7 +27,6 @@ async def login(email: str, password: str):
             user_id, db_password, encrypted_surname, encrypted_name = result
 
             hashed_password = await hash_password(password)
-
             if db_password != hashed_password:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,

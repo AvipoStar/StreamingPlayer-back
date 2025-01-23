@@ -3,7 +3,7 @@ from typing import Optional
 from fastapi import APIRouter, Query
 
 from controllers.admin import get_table_row_counts, export_author_to_file, getAuthorStats, getAuthorStatsCSV, \
-    getGenreStatistic, getUserListenCount
+    getGenreStatistic, getUserListenCount, getReporAuthors, getReporGenres
 
 router = APIRouter()
 
@@ -41,4 +41,16 @@ async def get_genre_statistic():
 @router.get("/getUserListenCount", tags=["Admin"])
 async def get_user_listen_count():
     result = await getUserListenCount()
+    return result
+
+
+@router.get("/getReporAuthors", tags=["Admin"])
+async def get_repor_authors():
+    result = await getReporAuthors()
+    return result
+
+
+@router.get("/getReporGenres", tags=["Admin"])
+async def get_repor_genres():
+    result = await getReporGenres()
     return result
