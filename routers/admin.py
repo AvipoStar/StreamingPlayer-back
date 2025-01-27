@@ -1,9 +1,11 @@
+from datetime import date
 from typing import Optional
 
 from fastapi import APIRouter, Query
 
 from controllers.admin import get_table_row_counts, export_author_to_file, getAuthorStats, getAuthorStatsCSV, \
-    getGenreStatistic, getUserListenCount, getReporAuthors, getReporGenres
+    getGenreStatistic, getUserListenCount, getReporAuthors, getReporGenres, getPivotTableReport
+from models.simpleValues import DatePeriod
 
 router = APIRouter()
 
@@ -53,4 +55,10 @@ async def get_repor_authors():
 @router.get("/getReporGenres", tags=["Admin"])
 async def get_repor_genres():
     result = await getReporGenres()
+    return result
+
+
+@router.post("/getReporPivotTable", tags=["Admin"])
+async def get_pivot_table_report(value: DatePeriod):
+    result = await getPivotTableReport(value.dateStart, value.dateEnd)
     return result

@@ -582,7 +582,7 @@ async def getReporAuthors():
                 for album in author['albums']:
                     html_content += f"<div class='album-row'>" \
                                     f"<div class='album-name'>" \
-                                    f"<img class='album-cover' src='{album['preview_url']}'/>" \
+                                    f"<img class='album-cover' src='{album['preview_url']}' alt='Нет фото'/>" \
                                     f"<strong>{album['album_title']}</strong>" \
                                     f"<div><strong>Выпущен:</strong> {album['release_date']}</div>" \
                                     f"</div>" \
@@ -718,26 +718,26 @@ async def getReporGenres():
             genre_index = 1
             for genre in genre_result:
                 html_content += f"<div class='table-row'>" \
-                                    f"<div class='index'>" \
-                                        f"{genre_index}. " \
-                                        f"<strong>Жанр: {genre['genre_name']}</strong>" \
-                                        f"<div>Количество прослушиваний: {genre['total_listens']}</div>" \
-                                    f"</div>" \
-                                    f"<div class='genre-row'>" \
-                                        f"<table>" \
-                                            f"<thead>" \
-                                                f"<tr>" \
-                                                    f"<th>Название</th>" \
-                                                    f"<th>Количество прослушиваний</th>" \
-                                                    f"<th>Длительность</th>" \
-                                                f"</tr>" \
-                                            f"</thead>" \
-                                        f"<tbody>"
+                                f"<div class='index'>" \
+                                f"{genre_index}. " \
+                                f"<strong>Жанр: {genre['genre_name']}</strong>" \
+                                f"<div>Количество прослушиваний: {genre['total_listens']}</div>" \
+                                f"</div>" \
+                                f"<div class='genre-row'>" \
+                                f"<table>" \
+                                f"<thead>" \
+                                f"<tr>" \
+                                f"<th>Название</th>" \
+                                f"<th>Количество прослушиваний</th>" \
+                                f"<th>Длительность</th>" \
+                                f"</tr>" \
+                                f"</thead>" \
+                                f"<tbody>"
                 for track in genre['tracks']:
                     html_content += f"<tr>" \
-                                        f"<td>{track['title']}</td>" \
-                                        f"<td>{track['listen_count']}</td>" \
-                                        f"<td>{track['duration']} сек.</td>" \
+                                    f"<td>{track['title']}</td>" \
+                                    f"<td>{track['listen_count']}</td>" \
+                                    f"<td>{track['duration']} сек.</td>" \
                                     f"</tr>"
                 html_content += f"</tbody>" \
                                 f"</table>" \
@@ -752,6 +752,85 @@ async def getReporGenres():
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Ошибка получения треков"
+            )
+        finally:
+            await cursor.close()
+            connection.close()
+
+async def getPivotTableReport(dateStart: str, dateEnd: str):
+    connection = await get_connection()
+    if connection is None:
+        raise HTTPException(status_code=500, detail="Ошибка подключения к базе данных")
+
+    async with connection.cursor(aiomysql.DictCursor) as cursor:
+        try:
+            # Получение данных жанров с фильтрацией по датам
+            await cursor.execute('''
+                SELECT
+                    v.release_date,
+                    COUNT(IF(v.name = 'Поп', v.id, NULL)) AS 'Поп',
+                    COUNT(IF(v.name = 'Хип-хоп', v.id, NULL)) AS 'Хип-хоп',
+                    COUNT(IF(v.name = 'Рок', v.id, NULL)) AS 'Рок',
+                    COUNT(IF(v.name = 'Классика', v.id, NULL)) AS 'Классика'
+                FROM
+                    view1 v
+                WHERE
+                    v.release_date BETWEEN %s AND %s
+                GROUP BY
+                    v.release_date;
+            ''', (dateStart, dateEnd))
+            pivot_table = await cursor.fetchall()
+
+            print('pivot_table', pivot_table)
+
+            # Генерация HTML таблицы
+            html_content = """
+                <html>
+                <head>
+                <style>
+                    table {
+                        border-collapse: collapse;
+                        background-color: #fff;
+                    }
+                    th, td {
+                        border: 1px solid #000;
+                        text-align: center;
+                        padding: 5px;
+                    }
+                </style>
+                </head>
+                <body>
+                    <h1>Отчет по жанрам</h1>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Дата</th>
+                                <th>Поп</th>
+                                <th>Хип-хоп</th>
+                                <th>Рок</th>
+                                <th>Классика</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            """
+
+            for row in pivot_table:
+                html_content += f"<tr>"
+                html_content += f'<td>{row["release_date"]}</td>'
+                html_content += f'<td>{row["Поп"]}</td>'
+                html_content += f'<td>{row["Хип-хоп"]}</td>'
+                html_content += f'<td>{row["Рок"]}</td>'
+                html_content += f'<td>{row["Классика"]}</td>'
+                html_content += f'</tr>'
+
+            html_content += "</tbody></table></body></html>"
+
+            return html_content
+        except aiomysql.Error as e:
+            print(f"Ошибка: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Ошибка получения данных"
             )
         finally:
             await cursor.close()
