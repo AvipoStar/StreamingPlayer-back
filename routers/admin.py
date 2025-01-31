@@ -62,3 +62,20 @@ async def get_repor_genres():
 async def get_pivot_table_report(value: DatePeriod):
     result = await getPivotTableReport(value.dateStart, value.dateEnd)
     return result
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+@router.post("/")
+async def test_router():
+    return 'hello world'

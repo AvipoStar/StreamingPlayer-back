@@ -1,23 +1,21 @@
-from fastapi import FastAPI, APIRouter, UploadFile
-
+from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
-from starlette.staticfiles import StaticFiles
 
-from routers.mediaItem import router as mediaItem_router
+from routers.admin import router as admin_router
 from routers.album import router as album_router
 from routers.author import router as author_router
-from routers.login import router as auth_router
-from routers.registration import router as reg_router
-from routers.userData import router as user_router
-from routers.playlist import router as playlist_router
 from routers.favorites import router as favorites_router
-from routers.userSettings import router as userSettings_router
-from routers.player import router as player_router
-from routers.genre import router as genre_router
 from routers.file import router as file_router
-from routers.admin import router as admin_router
+from routers.genre import router as genre_router
+from routers.login import router as auth_router
+from routers.mediaItem import router as mediaItem_router
+from routers.player import router as player_router
+from routers.playlist import router as playlist_router
+from routers.registration import router as reg_router
 from routers.search import router as search_router
 from routers.superAdmin import router as superAdmin_router
+from routers.userData import router as user_router
+from routers.userSettings import router as userSettings_router
 
 app = FastAPI()
 

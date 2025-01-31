@@ -835,3 +835,5 @@ async def getPivotTableReport(dateStart: str, dateEnd: str):
         finally:
             await cursor.close()
             connection.close()
+
+
